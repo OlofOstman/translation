@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import http from 'http';
 import WebSocket, { WebSocketServer } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import { RoomManager } from './roomManager';
@@ -14,10 +15,35 @@ if (!OPENAI_API_KEY) {
   process.exit(1);
 }
 
-const wss = new WebSocketServer({ port: PORT });
+// Create HTTP server for health checks
+const server = http.createServer((req, res) => {
+  if (req.url === '/health' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', service: 'translation-backend' }));
+  } else {
+    res.writeHead(404);
+    res.end('Not found');
+  }
+});
+
+// Create WebSocket server attached to HTTP server
+const wss = new WebSocketServer({ server });
 const roomManager = new RoomManager();
 
-console.log(`WebSocket server listening on port ${PORT}`);
+// Start server
+server.listen(PORT, () => {
+  console.log(`WebSocket server listening on port ${PORT}`);
+  console.log(`Health check available at http://localhost:${PORT}/health`);
+});
+
+// Enhanced error logging
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
 wss.on('connection', (ws: WebSocket) => {
   let context: ConnectionContext | null = null;
@@ -244,9 +270,11 @@ wss.on('connection', (ws: WebSocket) => {
       user2.language,
       (audio: Buffer) => {
         // Send translated audio to user2
+        // Convert Buffer to ArrayBuffer
+        const arrayBuffer = audio.buffer.slice(audio.byteOffset, audio.byteOffset + audio.byteLength) as ArrayBuffer;
         sendMessage(user2.ws, {
           type: 'translated_audio',
-          data: audio,
+          data: arrayBuffer,
         });
       },
       (error: Error) => {
@@ -265,9 +293,11 @@ wss.on('connection', (ws: WebSocket) => {
       user1.language,
       (audio: Buffer) => {
         // Send translated audio to user1
+        // Convert Buffer to ArrayBuffer
+        const arrayBuffer = audio.buffer.slice(audio.byteOffset, audio.byteOffset + audio.byteLength) as ArrayBuffer;
         sendMessage(user1.ws, {
           type: 'translated_audio',
-          data: audio,
+          data: arrayBuffer,
         });
       },
       (error: Error) => {

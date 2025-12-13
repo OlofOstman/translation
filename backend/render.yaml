@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: translation-backend
+    env: node
+    buildCommand: cd .. && npm install && cd backend && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+    healthCheckPath: /health
+
